@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Headway — Driver supply planner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="header">
+      <div class="header__text">
+        <h1 class="header__title">Headway</h1>
+        <p class="header__desc">Plan driver supply against hourly demand. Test the plan against a bad day.</p>
+      </div>
+      <div class="header__presets" role="group" aria-label="Demand presets">
+        <button type="button" class="btn-preset active" data-preset="weekday">Weekday commuter</button>
+        <button type="button" class="btn-preset" data-preset="weekend">Weekend</button>
+        <button type="button" class="btn-preset" data-preset="event">Event day</button>
+        <button type="button" class="btn-preset" data-preset="hospital">Hospital shift change</button>
+        <button type="button" class="btn-preset" data-preset="manual">Manual</button>
+      </div>
+    </header>
+
+    <div id="warning-banner" class="warning-banner" hidden role="alert"></div>
+
+    <main class="main-grid">
+      <section class="col-left" aria-label="Charts and shift plan">
+        <div class="card">
+          <div class="card__header">
+            <h2 class="card__title card__title--heading">Demand &amp; supply</h2>
+            <p class="card__subtitle">Edit hourly demand, then compare required fleet to supplied vehicles</p>
+          </div>
+          <div class="demand-section">
+            <p class="section-label">Rider demand (rides per hour)</p>
+            <div id="demand-chart" class="chart-container chart-container--demand" role="img" aria-label="Draggable demand profile chart showing rides per hour from 5:00 to 24:00"></div>
+            <div id="demand-grid" class="demand-grid" role="group" aria-label="Editable demand values per hour"></div>
+          </div>
+          <div class="coverage-section">
+            <p class="section-label">Hourly coverage</p>
+            <div id="coverage-chart" class="chart-container" role="img" aria-label="Hourly coverage chart showing required fleet as a stepped line and supplied vehicles as bars from 5:00 to 24:00"></div>
+            <p class="footnote">Wait estimates use a simplified congestion approximation and are directional, not predictive.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card__header">
+            <h2 class="card__title card__title--heading">Shift Gantt</h2>
+            <p class="card__subtitle" id="gantt-summary"></p>
+          </div>
+          <div id="gantt-chart" class="gantt-container" role="img" aria-label="Driver shift Gantt chart with one row per driver and hours 5 to 24 on the horizontal axis"></div>
+        </div>
+
+        <div class="card">
+          <div class="card__header">
+            <h2 class="card__title card__title--heading">Shift table</h2>
+            <p class="card__subtitle" id="shift-summary"></p>
+          </div>
+          <div class="table-wrap">
+            <table class="shift-table" id="shift-table">
+              <thead>
+                <tr>
+                  <th scope="col">Driver</th>
+                  <th scope="col">Start</th>
+                  <th scope="col">End</th>
+                  <th scope="col">Length</th>
+                  <th scope="col">Break</th>
+                  <th scope="col">Paid hrs</th>
+                </tr>
+              </thead>
+              <tbody id="shift-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <aside class="col-right" aria-label="KPIs and controls">
+        <div class="card">
+          <h2 class="card__title card__title--heading">Key metrics</h2>
+          <div id="kpi-grid" class="kpi-grid"></div>
+        </div>
+
+        <div class="card">
+          <h2 class="card__title card__title--heading">Settings</h2>
+          <div class="settings-form" id="settings-form">
+            <div class="setting-row">
+              <label for="rides-per-veh">Rides per vehicle-hour</label>
+              <div class="setting-control">
+                <input type="range" id="rides-per-veh" min="1.5" max="6" step="0.5" value="3.5">
+                <span class="mono" id="rides-per-veh-val">3.5</span>
+              </div>
+            </div>
+            <div class="setting-row">
+              <label for="buffer-pct">Service level buffer</label>
+              <div class="setting-control">
+                <input type="range" id="buffer-pct" min="0" max="30" step="5" value="15">
+                <span class="mono" id="buffer-pct-val">15%</span>
+              </div>
+            </div>
+            <div class="setting-row">
+              <label for="base-wait">Base wait (min)</label>
+              <div class="setting-control">
+                <input type="range" id="base-wait" min="4" max="15" step="1" value="8">
+                <span class="mono" id="base-wait-val">8</span>
+              </div>
+            </div>
+            <div class="setting-row">
+              <label for="driver-wage">Driver wage ($/hr)</label>
+              <div class="setting-control">
+                <input type="number" id="driver-wage" min="15" max="40" step="1" value="22" class="mono input-num">
+              </div>
+            </div>
+            <div class="setting-row">
+              <span>Overtime multiplier</span>
+              <span class="mono">1.5×</span>
+            </div>
+            <div class="setting-row">
+              <label for="max-fleet">Max fleet</label>
+              <div class="setting-control">
+                <input type="number" id="max-fleet" min="1" max="100" step="1" value="40" class="mono input-num">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card card--disruption">
+          <h2 class="card__title card__title--heading">Stress test: driver callout</h2>
+          <div class="disruption-panel">
+            <div class="setting-row">
+              <label for="callout-driver">Remove driver</label>
+              <select id="callout-driver" class="callout-select"></select>
+            </div>
+            <button type="button" id="btn-remove-driver" class="btn btn--secondary">Remove driver</button>
+            <div id="recovery-options" class="recovery-options" hidden>
+              <p class="recovery-label">Recovery options</p>
+              <label class="recovery-option">
+                <input type="radio" name="recovery" value="extend" checked>
+                <span id="recovery-extend-label">Extend shifts</span>
+              </label>
+              <label class="recovery-option">
+                <input type="radio" name="recovery" value="oncall">
+                <span id="recovery-oncall-label">Call in on-call driver</span>
+              </label>
+              <div class="recovery-actions">
+                <button type="button" id="btn-apply-recovery" class="btn btn--primary">Apply recovery</button>
+                <button type="button" id="btn-reset-day" class="btn btn--ghost">Reset day</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 class="card__title card__title--heading">Scenario comparison</h2>
+          <div class="baseline-panel">
+            <button type="button" id="btn-pin-baseline" class="btn btn--secondary">Pin as baseline</button>
+            <button type="button" id="btn-clear-baseline" class="btn btn--ghost" hidden>Clear baseline</button>
+            <p id="baseline-status" class="baseline-status">No baseline pinned.</p>
+            <div id="comparison-strip-baseline" class="comparison-strip comparison-strip--baseline" hidden></div>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <footer class="footer">
+      Built by Ayush Khaitan · <a href="https://ayushkhaitan.com" target="_blank" rel="noopener noreferrer">ayushkhaitan.com</a>
+    </footer>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
